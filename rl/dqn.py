@@ -72,11 +72,11 @@ class DQN:
     def learn(self) -> None:
         states, actions, rewards, terminals, next_states = self.memory.sample()
 
-        states = torch.FloatTensor(states, device=self.device)
-        actions = torch.LongTensor(actions, device=self.device)
-        rewards = torch.FloatTensor(rewards, device=self.device)
-        terminals = torch.BoolTensor(terminals, device=self.device)
-        next_states = torch.FloatTensor(next_states, device=self.device)
+        states = torch.FloatTensor(states).to(self.device)
+        actions = torch.LongTensor(actions).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        terminals = torch.BoolTensor(terminals).to(self.device)
+        next_states = torch.FloatTensor(next_states).to(self.device)
 
         batch_indices = np.arange(states.shape[0])
         state_action_values = self.net(states)[batch_indices, actions]
