@@ -1,0 +1,125 @@
+# import random
+import datetime
+import os
+
+import gym
+import torch
+import numpy as np
+from torch.nn import MSELoss
+from torch.optim import Adam
+from tensorboardX import SummaryWriter
+
+from .model import QNet
+from .agent import Agent
+from .memory import Memory
+from .utils import Utils
+
+
+class DQN:
+    def __init__(self,
+                 env_name: str = "LunarLander-v2",
+                 eps_begin: float = 1.0,
+                 eps_final: float = 0.01,
+                 eps_decay: float = 0.4,
+                 n_episodes: int = 150_000,
+                 sync_rate: int = 1_000,
+                 gamma: float = 0.99,
+                 lr: float = 1.0e-4,
+                 batch_size: int = 32,
+                 mem_size: int = 100_000,
+                 warm_start: int = 1_000,
+                 avg_reward_len: int = 100,
+                 seed: int = 42
+                 ):
+        # random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        self.device = torch.device("gpu:0" if torch.cuda.is_available() else "cpu")
+        self.n_episodes = n_episodes
+        self.env = gym.make(env_name)
+        self.env.seed(seed)
+        self.obs_shape = self.env.observation_space.shape
+        self.n_actions = self.env.action_space.n
+        self.n_states = self.obs_shape[0]
+        self.net = QNet(self.n_states, self.n_actions)
+        self.net_target = QNet(self.n_states, self.n_actions)
+        self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
+        self.agent = Agent(self.net, self.n_actions, self.device)
+        self.gamma = gamma
+        self.lr = lr
+        self.batch_size = batch_size
+        self.warm_start = warm_start
+        self.memory = Memory(mem_size, batch_size)
+        self.sync_rate = sync_rate
+        self.avg_reward_len = avg_reward_len
+        self.rewards = []
+        self.optimizer = Adam(self.net.parameters(), lr=self.lr)
+        self.loss = MSELoss()
+
+    def populate(self) -> None:
+        if self.warm_start > 0:
+            # self.agent.eps = 1.0
+            state = self.env.reset()
+            for _ in range(self.warm_start):
+                action = self.agent(state)
+                next_state, reward, done, _ = self.env.step(action)
+                self.memory.append(state, action, reward, done, next_state)
+                state = next_state
+                if done:
+                    state = self.env.reset()
+
+    def learn(self) -> None:
+        states, actions, rewards, terminals, next_states = self.memory.sample()
+
+        states = torch.FloatTensor(states, device=self.device)
+        actions = torch.LongTensor(actions, device=self.device)
+        rewards = torch.FloatTensor(rewards, device=self.device)
+        terminals = torch.BoolTensor(terminals, device=self.device)
+        next_states = torch.FloatTensor(next_states, device=self.device)
+
+        batch_indices = np.arange(states.shape[0])
+        state_action_values = self.net(states)[batch_indices, actions]
+        with torch.no_grad():
+            next_state_values, _ = self.net_target(next_states).max(axis=1)
+            next_state_values[terminals] = 0.0
+            next_state_values = next_state_values.detach()
+
+        expected_state_action_values = rewards + self.gamma * next_state_values
+        loss = self.loss(state_action_values, expected_state_action_values)
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+    def train(self) -> None:
+        now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
+        log_dir = os.path.join("logs", now)
+        sw = SummaryWriter(log_dir=log_dir)
+        try:
+            self.populate()
+            for e in range(self.n_episodes):
+                self.agent.eps = self.epsilons[e]
+                score = 0.0
+                steps = 0
+                done = False
+                old_state = self.env.reset()
+                while not done:
+                    action = self.agent(old_state)
+                    new_state, reward, done, _ = self.env.step(action)
+                    self.memory.append(old_state, action, reward, done, new_state)
+                    self.learn()
+                    old_state = new_state
+                    score += reward
+                    steps += 1
+
+                if e % self.sync_rate == 0:
+                    self.net_target.load_state_dict(self.net.state_dict())
+
+                self.rewards.append(score)
+                score_avg = np.average(self.rewards[-self.avg_reward_len:])
+                sw.add_scalar("score/val", score, global_step=e)
+                sw.add_scalar("score/avg", score_avg, global_step=e)
+                sw.add_scalar("episode/eps", self.agent.eps, global_step=e)
+                sw.add_scalar("episode/steps", steps, global_step=e)
+        finally:
+            sw.close()
