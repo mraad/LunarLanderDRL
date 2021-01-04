@@ -43,7 +43,9 @@ class DQN:
         self.n_actions = self.env.action_space.n
         self.n_states = self.obs_shape[0]
         self.net = QNet(self.n_states, self.n_actions)
+        self.net.to(self.device)
         self.net_target = QNet(self.n_states, self.n_actions)
+        self.net_target.to(self.device)
         self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
         self.agent = Agent(self.net, self.n_actions, self.device)
         self.gamma = gamma
@@ -56,6 +58,7 @@ class DQN:
         self.rewards = []
         self.optimizer = Adam(self.net.parameters(), lr=self.lr)
         self.loss = MSELoss()
+        self.loss.to(self.device)
 
     def populate(self) -> None:
         if self.warm_start > 0:
