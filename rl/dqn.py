@@ -35,7 +35,7 @@ class DQN:
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
-        self.device = torch.device("gpu:0" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.n_episodes = n_episodes
         self.env = gym.make(env_name)
         self.env.seed(seed)
