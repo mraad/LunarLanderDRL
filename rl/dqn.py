@@ -1,4 +1,3 @@
-# import random
 import datetime
 import os
 
@@ -9,9 +8,9 @@ from torch.nn import MSELoss
 from torch.optim import Adam
 from tensorboardX import SummaryWriter
 
-from .model import QNet
+from .model import MLP
 from .agent import Agent
-from .memory import Memory
+from .replaybuffer import ReplayBuffer
 from .utils import Utils
 
 
@@ -24,14 +23,13 @@ class DQN:
                  n_episodes: int = 150_000,
                  sync_rate: int = 1_000,
                  gamma: float = 0.99,
-                 lr: float = 1.0e-4,
+                 lr: float = 1.0e-3,
                  batch_size: int = 32,
                  mem_size: int = 100_000,
                  warm_start: int = 1_000,
                  avg_reward_len: int = 100,
                  seed: int = 42
                  ):
-        # random.seed(seed)
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
@@ -40,11 +38,11 @@ class DQN:
         self.env = gym.make(env_name)
         self.env.seed(seed)
         self.obs_shape = self.env.observation_space.shape
-        self.n_actions = self.env.action_space.n
         self.n_states = self.obs_shape[0]
-        self.net = QNet(self.n_states, self.n_actions)
+        self.n_actions = self.env.action_space.n
+        self.net = MLP(self.n_states, self.n_actions)
         self.net.to(self.device)
-        self.net_target = QNet(self.n_states, self.n_actions)
+        self.net_target = MLP(self.n_states, self.n_actions)
         self.net_target.to(self.device)
         self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
         self.agent = Agent(self.net, self.n_actions, self.device)
@@ -52,7 +50,7 @@ class DQN:
         self.lr = lr
         self.batch_size = batch_size
         self.warm_start = warm_start
-        self.memory = Memory(mem_size, batch_size)
+        self.buffer = ReplayBuffer(mem_size, batch_size)
         self.sync_rate = sync_rate
         self.avg_reward_len = avg_reward_len
         self.rewards = []
@@ -67,13 +65,13 @@ class DQN:
             for _ in range(self.warm_start):
                 action = self.agent(state)
                 next_state, reward, done, _ = self.env.step(action)
-                self.memory.append(state, action, reward, done, next_state)
+                self.buffer.append(state, action, reward, done, next_state)
                 state = next_state
                 if done:
                     state = self.env.reset()
 
     def learn(self) -> None:
-        states, actions, rewards, terminals, next_states = self.memory.sample()
+        states, actions, rewards, terminals, next_states = self.buffer.sample()
 
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.LongTensor(actions).to(self.device)
@@ -81,15 +79,20 @@ class DQN:
         terminals = torch.BoolTensor(terminals).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
 
-        batch_indices = np.arange(states.shape[0])
-        state_action_values = self.net(states)[batch_indices, actions]
+        # batch_indices = np.arange(states.shape[0])
+        # state_action_values = self.net(states)[batch_indices, actions]
+        actions_v = actions.unsqueeze(-1)
+        outputs = self.net(states)
+        state_action_values = outputs.gather(1, actions_v)
+        state_action_values = state_action_values.squeeze(-1)
+
         with torch.no_grad():
             next_state_values, _ = self.net_target(next_states).max(axis=1)
             next_state_values[terminals] = 0.0
-            next_state_values = next_state_values.detach()
+            expected_state_action_values = rewards + self.gamma * next_state_values.detach()
 
-        expected_state_action_values = rewards + self.gamma * next_state_values
         loss = self.loss(state_action_values, expected_state_action_values)
+
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -102,25 +105,25 @@ class DQN:
             self.populate()
             for e in range(self.n_episodes):
                 self.agent.eps = self.epsilons[e]
-                score = 0.0
+                rewards = 0.0
                 steps = 0
                 done = False
                 old_state = self.env.reset()
                 while not done:
                     action = self.agent(old_state)
                     new_state, reward, done, _ = self.env.step(action)
-                    self.memory.append(old_state, action, reward, done, new_state)
+                    self.buffer.append(old_state, action, reward, done, new_state)
                     self.learn()
                     old_state = new_state
-                    score += reward
+                    rewards += reward
                     steps += 1
 
                 if e % self.sync_rate == 0:
                     self.net_target.load_state_dict(self.net.state_dict())
 
-                self.rewards.append(score)
+                self.rewards.append(rewards)
                 score_avg = np.average(self.rewards[-self.avg_reward_len:])
-                sw.add_scalar("score/val", score, global_step=e)
+                sw.add_scalar("score/val", rewards, global_step=e)
                 sw.add_scalar("score/avg", score_avg, global_step=e)
                 sw.add_scalar("episode/eps", self.agent.eps, global_step=e)
                 sw.add_scalar("episode/steps", steps, global_step=e)

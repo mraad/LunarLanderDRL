@@ -1,18 +1,16 @@
-import random
 from collections import deque
 from typing import List, Tuple
 
 import numpy as np
 
 
-class Memory:
+class ReplayBuffer:
     def __init__(self,
-                 mem_size: int,
+                 capacity: int,
                  batch_size: int
                  ) -> None:
-        self.mem_size = mem_size
         self.batch_size = batch_size
-        self.buffer = deque(maxlen=mem_size)
+        self.buffer = deque(maxlen=capacity)
 
     def __len__(self) -> int:
         return len(self.buffer)
@@ -26,17 +24,8 @@ class Memory:
         self.buffer.append((state, action, reward, terminal, next_state))
 
     def sample(self) -> Tuple[List[np.array], List[int], List[float], List[int], List[np.array]]:
-        sample = random.sample(self.buffer, self.batch_size)
-        states = []
-        actions = []
-        rewards = []
-        terminals = []
-        next_states = []
-        for state, action, reward, terminal, next_state in sample:
-            states.append(state)
-            actions.append(action)
-            rewards.append(reward)
-            terminals.append(terminal)
-            next_states.append(next_state)
-
+        indices = np.random.choice(len(self.buffer), self.batch_size, replace=False)
+        states, actions, rewards, terminals, next_states = zip(
+            *[self.buffer[idx] for idx in indices]
+        )
         return states, actions, rewards, terminals, next_states

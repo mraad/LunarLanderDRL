@@ -13,8 +13,10 @@ dependencies:
   - pytorch-lightning=1.1.*
   - tensorboardx=2.1.*
   - matplotlib=3.3.*
-  - gym=0.17.*
+  - gym=0.18.*
   - shap=0.37.*
+  - wandb=0.10.*
   - pip
   - pip:
       - torchvision
+      - opencv-python
