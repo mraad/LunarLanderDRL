@@ -1,15 +1,16 @@
 import datetime
+import logging
 import os
 
 import gym
-import torch
 import numpy as np
+import torch
+from tensorboardX import SummaryWriter
 from torch.nn import MSELoss
 from torch.optim import Adam
-from tensorboardX import SummaryWriter
 
-from .model import MLP
 from .agent import Agent
+from .model import MLP
 from .replaybuffer import ReplayBuffer
 from .utils import Utils
 
@@ -100,6 +101,7 @@ class DQN:
     def train(self) -> None:
         now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
         log_dir = os.path.join("logs", now)
+        logging.info(f"Tensorboard logdir={log_dir}")
         sw = SummaryWriter(log_dir=log_dir)
         try:
             self.populate()

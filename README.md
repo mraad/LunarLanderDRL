@@ -20,6 +20,9 @@ pip install jupyter-kite && jupyter labextension install "@kiteco/jupyterlab-kit
 - https://machinelearningmastery.com/what-is-information-entropy
 - https://www.youtube.com/watch?v=s2gw5jeauNU
 - http://www.kasimte.com/2019/10/30/log-derivative-trick-for-dummies.html
+- https://github.com/microsoft/hummingbird
+- https://www.kubeflow.org/docs/components/serving/kfserving/
+
 
 #### ReAgent
 

@@ -20,3 +20,4 @@ dependencies:
   - pip:
       - torchvision
       - opencv-python
+      - ray[rllib]
