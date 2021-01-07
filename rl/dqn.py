@@ -21,15 +21,16 @@ class DQN:
                  eps_begin: float = 1.0,
                  eps_final: float = 0.01,
                  eps_decay: float = 0.4,
-                 n_episodes: int = 150_000,
-                 sync_rate: int = 1_000,
+                 n_episodes: int = 100_000,
+                 sync_rate: int = 500,
                  gamma: float = 0.99,
-                 lr: float = 1.0e-3,
-                 batch_size: int = 32,
-                 mem_size: int = 100_000,
+                 learning_rate: float = 1.0e-3,
+                 batch_size: int = 64,
+                 replay_buffer_size: int = 100_000,
                  warm_start: int = 1_000,
                  avg_reward_len: int = 100,
-                 seed: int = 42
+                 seed: int = 42,
+                 logdir: str = "logs"
                  ):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -48,23 +49,24 @@ class DQN:
         self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
         self.agent = Agent(self.net, self.n_actions, self.device)
         self.gamma = gamma
-        self.lr = lr
+        self.lr = learning_rate
         self.batch_size = batch_size
         self.warm_start = warm_start
-        self.buffer = ReplayBuffer(mem_size, batch_size)
+        self.buffer = ReplayBuffer(replay_buffer_size, batch_size)
         self.sync_rate = sync_rate
         self.avg_reward_len = avg_reward_len
+        self.logdir = logdir
         self.rewards = []
         self.optimizer = Adam(self.net.parameters(), lr=self.lr)
         self.loss = MSELoss()
         self.loss.to(self.device)
 
     def populate(self) -> None:
+        logging.info(f"Populating replay buffer with {self.warm_start} items.")
         if self.warm_start > 0:
-            # self.agent.eps = 1.0
             state = self.env.reset()
             for _ in range(self.warm_start):
-                action = self.agent(state)
+                action = self.env.action_space.sample()
                 next_state, reward, done, _ = self.env.step(action)
                 self.buffer.append(state, action, reward, done, next_state)
                 state = next_state
@@ -80,8 +82,6 @@ class DQN:
         terminals = torch.BoolTensor(terminals).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
 
-        # batch_indices = np.arange(states.shape[0])
-        # state_action_values = self.net(states)[batch_indices, actions]
         actions_v = actions.unsqueeze(-1)
         outputs = self.net(states)
         state_action_values = outputs.gather(1, actions_v)
@@ -100,7 +100,7 @@ class DQN:
 
     def train(self) -> None:
         now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
-        log_dir = os.path.join("logs", now)
+        log_dir = os.path.join(self.logdir, now)
         logging.info(f"Tensorboard logdir={log_dir}")
         sw = SummaryWriter(log_dir=log_dir)
         try:
