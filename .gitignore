@@ -4,6 +4,7 @@ __pycache__/
 
 .Python
 logs/
+ckpt/
 build/
 develop-eggs/
 dist/

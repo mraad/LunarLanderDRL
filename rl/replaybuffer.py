@@ -19,11 +19,11 @@ class ReplayBuffer:
                state: np.array,
                action: int,
                reward: float,
-               terminal: int,
+               terminal: bool,
                next_state: np.array) -> None:
         self.buffer.append((state, action, reward, terminal, next_state))
 
-    def sample(self) -> Tuple[List[np.array], List[int], List[float], List[int], List[np.array]]:
+    def sample(self) -> Tuple[List[np.array], List[int], List[float], List[bool], List[np.array]]:
         indices = np.random.choice(len(self.buffer), self.batch_size, replace=False)
         states, actions, rewards, terminals, next_states = zip(
             *[self.buffer[idx] for idx in indices]

@@ -1,3 +1,4 @@
+import os
 import argparse
 import logging
 from rl.dqn import DQN
@@ -86,7 +87,11 @@ if __name__ == '__main__':
         default=42,
         help='Seed value.')
     arg_parser.add_argument(
-        '--logdir',
-        default="logs",
+        '--logs_dir',
+        default=os.path.join(os.getcwd(), "logs"),
         help='Tensorboard logging directory.')
+    arg_parser.add_argument(
+        '--ckpt_dir',
+        default=os.path.join(os.getcwd(), "ckpt"),
+        help='Checkpoint directory.')
     _main_(arg_parser.parse_args())

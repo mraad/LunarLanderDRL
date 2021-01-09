@@ -12,6 +12,7 @@ from torch.optim import Adam
 from .agent import Agent
 from .model import MLP
 from .replaybuffer import ReplayBuffer
+from .checkpoint import Checkpoint
 from .utils import Utils
 
 
@@ -30,7 +31,8 @@ class DQN:
                  warm_start: int = 1_000,
                  avg_reward_len: int = 100,
                  seed: int = 42,
-                 logdir: str = "logs"
+                 logs_dir: str = "logs",
+                 ckpt_dir: str = "ckpt"
                  ):
         np.random.seed(seed)
         torch.manual_seed(seed)
@@ -55,7 +57,8 @@ class DQN:
         self.buffer = ReplayBuffer(replay_buffer_size, batch_size)
         self.sync_rate = sync_rate
         self.avg_reward_len = avg_reward_len
-        self.logdir = logdir
+        self.logs_dir = logs_dir
+        self.ckpt_dir = ckpt_dir
         self.rewards = []
         self.optimizer = Adam(self.net.parameters(), lr=self.lr)
         self.loss = MSELoss()
@@ -100,9 +103,8 @@ class DQN:
 
     def train(self) -> None:
         now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
-        log_dir = os.path.join(self.logdir, now)
-        logging.info(f"Tensorboard logdir={log_dir}")
-        sw = SummaryWriter(log_dir=log_dir)
+        checkpoint = Checkpoint(os.path.join(self.ckpt_dir, f"{now}.pth"))
+        sw = SummaryWriter(log_dir=(os.path.join(self.logs_dir, now)))
         try:
             self.populate()
             for e in range(self.n_episodes):
@@ -125,6 +127,9 @@ class DQN:
 
                 self.rewards.append(rewards)
                 score_avg = np.average(self.rewards[-self.avg_reward_len:])
+
+                checkpoint.checkpoint(self.net, score_avg)
+
                 sw.add_scalar("score/val", rewards, global_step=e)
                 sw.add_scalar("score/avg", score_avg, global_step=e)
                 sw.add_scalar("episode/eps", self.agent.eps, global_step=e)
