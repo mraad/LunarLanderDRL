@@ -1,5 +1,5 @@
 import datetime
-import logging
+# import logging
 import os
 
 import gym
@@ -65,7 +65,6 @@ class DQN:
         self.loss.to(self.device)
 
     def populate(self) -> None:
-        logging.info(f"Populating replay buffer with {self.warm_start} items.")
         if self.warm_start > 0:
             state = self.env.reset()
             for _ in range(self.warm_start):
@@ -76,7 +75,14 @@ class DQN:
                 if done:
                     state = self.env.reset()
 
-    def learn(self) -> None:
+    def learn(self,
+              old_state: np.array,
+              action: int,
+              reward: float,
+              terminal: bool,
+              new_state) -> None:
+        self.buffer.append(old_state, action, reward, terminal, new_state)
+
         states, actions, rewards, terminals, next_states = self.buffer.sample()
 
         states = torch.FloatTensor(states).to(self.device)
@@ -104,8 +110,7 @@ class DQN:
     def train(self) -> None:
         now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
         checkpoint = Checkpoint(os.path.join(self.ckpt_dir, f"{now}.pth"))
-        sw = SummaryWriter(log_dir=(os.path.join(self.logs_dir, now)))
-        try:
+        with SummaryWriter(os.path.join(self.logs_dir, now)) as sw:
             self.populate()
             for e in range(self.n_episodes):
                 self.agent.eps = self.epsilons[e]
@@ -116,8 +121,7 @@ class DQN:
                 while not done:
                     action = self.agent(old_state)
                     new_state, reward, done, _ = self.env.step(action)
-                    self.buffer.append(old_state, action, reward, done, new_state)
-                    self.learn()
+                    self.learn(old_state, action, reward, done, new_state)
                     old_state = new_state
                     rewards += reward
                     steps += 1
@@ -134,5 +138,3 @@ class DQN:
                 sw.add_scalar("score/avg", score_avg, global_step=e)
                 sw.add_scalar("episode/eps", self.agent.eps, global_step=e)
                 sw.add_scalar("episode/steps", steps, global_step=e)
-        finally:
-            sw.close()

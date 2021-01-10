@@ -1,8 +1,29 @@
+import torch
 import torch.nn as nn
 
 
+class ResNet(nn.Module):
+    def __init__(self, module: nn.Module) -> None:
+        super().__init__()
+        self.module = module
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        return self.module(inputs) + inputs
+
+
+class LinearRelu(nn.Module):
+    def __init__(self, inp_dim: int, out_dim: int) -> None:
+        super().__init__()
+        self.linear = nn.Linear(inp_dim, out_dim)
+        self.relu = nn.ReLU(inplace=True)
+        nn.init.xavier_uniform_(self.linear.weight)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.relu(self.linear(x))
+
+
 class MLP(nn.Module):
-    """DNN to approximate State Action.
+    """DNN to approximate State -> Action.
     """
 
     def __init__(self,
@@ -10,23 +31,12 @@ class MLP(nn.Module):
                  n_actions: int
                  ) -> None:
         super(MLP, self).__init__()
-        l1 = nn.Linear(n_states, 256)
-        l2 = nn.Linear(256, 128)
-        l3 = nn.Linear(128, 64)
-        l4 = nn.Linear(64, n_actions)
-        nn.init.xavier_uniform_(l1.weight)
-        nn.init.xavier_uniform_(l2.weight)
-        nn.init.xavier_uniform_(l3.weight)
-        nn.init.xavier_uniform_(l4.weight)
         self.net = nn.Sequential(
-            l1,
-            nn.ReLU(),
-            l2,
-            nn.ReLU(),
-            l3,
-            nn.ReLU(),
-            l4,
+            LinearRelu(n_states, 256),
+            LinearRelu(256, 128),
+            LinearRelu(128, 64),
+            nn.Linear(64, n_actions),
         )
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x)
