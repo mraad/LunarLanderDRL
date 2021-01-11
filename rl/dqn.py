@@ -33,7 +33,7 @@ class DQN:
                  seed: int = 42,
                  logs_dir: str = "logs",
                  ckpt_dir: str = "ckpt"
-                 ):
+                 ) -> None:
         np.random.seed(seed)
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
@@ -53,8 +53,8 @@ class DQN:
         self.gamma = gamma
         self.lr = learning_rate
         self.batch_size = batch_size
+        self.replay_buffer_size = replay_buffer_size
         self.warm_start = warm_start
-        self.buffer = ReplayBuffer(replay_buffer_size, batch_size)
         self.sync_rate = sync_rate
         self.avg_reward_len = avg_reward_len
         self.logs_dir = logs_dir
@@ -63,6 +63,10 @@ class DQN:
         self.optimizer = Adam(self.net.parameters(), lr=self.lr)
         self.loss = MSELoss()
         self.loss.to(self.device)
+        self.buffer = None
+
+    def create_replay_buffer(self) -> None:
+        self.buffer = ReplayBuffer(self.replay_buffer_size, self.batch_size)
 
     def populate(self) -> None:
         if self.warm_start > 0:
@@ -107,7 +111,12 @@ class DQN:
         loss.backward()
         self.optimizer.step()
 
+    def update_net_target(self) -> None:
+        self.net_target.load_state_dict(self.net.state_dict())
+
     def train(self) -> None:
+        self.update_net_target()
+        self.create_replay_buffer()
         now = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
         checkpoint = Checkpoint(os.path.join(self.ckpt_dir, f"{now}.pth"))
         with SummaryWriter(os.path.join(self.logs_dir, now)) as sw:
@@ -127,7 +136,7 @@ class DQN:
                     steps += 1
 
                 if e % self.sync_rate == 0:
-                    self.net_target.load_state_dict(self.net.state_dict())
+                    self.update_net_target()
 
                 self.rewards.append(rewards)
                 score_avg = np.average(self.rewards[-self.avg_reward_len:])
