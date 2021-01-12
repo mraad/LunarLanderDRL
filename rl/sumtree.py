@@ -11,17 +11,23 @@ class SumTree:
         self.tree = np.zeros(self.tree_len)
         self.data = np.zeros(capacity, dtype=object)
         self.write = 0
-        self.n_entries = 0
+        self.num_entries = 0
 
-    # update to the root node
+    @property
+    def sum_priorities(self) -> float:
+        return self.tree[0]
+
     def _propagate(self, index: int, change: float) -> None:
+        """update change to the root node.
+        """
         parent = (index - 1) // 2
         self.tree[parent] += change
         if parent != 0:
             self._propagate(parent, change)
 
-    # find sample on leaf node
     def _retrieve(self, index: int, s: float) -> int:
+        """Find sample on _leaf_ node.
+        """
         left = 2 * index + 1
         right = left + 1
 
@@ -33,31 +39,31 @@ class SumTree:
         else:
             return self._retrieve(right, s - self.tree[left])
 
-    def total(self) -> float:
-        return self.tree[0]
-
-    # store priority and data
-    def add(self, p: float, data: Tuple) -> None:
+    def add(self, priority: float, data: Tuple) -> None:
+        """Store priority and data.
+        """
         index = self.write + self.capacity - 1
 
         self.data[self.write] = data
-        self.update(index, p)
+        self.update(index, priority)
 
         self.write += 1
         if self.write >= self.capacity:
             self.write = 0
 
-        if self.n_entries < self.capacity:
-            self.n_entries += 1
+        if self.num_entries < self.capacity:
+            self.num_entries += 1
 
-    # update priority
-    def update(self, index: int, p: float) -> None:
-        change = p - self.tree[index]
-        self.tree[index] = p
+    def update(self, index: int, priority: float) -> None:
+        """Update priority
+        """
+        change = priority - self.tree[index]
+        self.tree[index] = priority
         self._propagate(index, change)
 
-    # get priority and data
     def get(self, s: float) -> Tuple[int, float, Tuple]:
+        """Get priority and data.
+        """
         tree_index = self._retrieve(0, s)
         data_index = tree_index - self.capacity + 1
         return tree_index, self.tree[tree_index], self.data[data_index]

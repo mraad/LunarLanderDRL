@@ -4,7 +4,6 @@
 brew install kubeless
 
 export RELEASE=$(curl -s https://api.github.com/repos/kubeless/kubeless/releases/latest | grep tag_name | cut -d '"' -f 4)
-
 ```
 
 ```bash
@@ -27,6 +26,7 @@ pip install jupyter-kite && jupyter labextension install "@kiteco/jupyterlab-kit
 #### ReAgent
 
 - https://github.com/facebookresearch/ReAgent
+- https://github.com/higgsfield/RL-Adventure
 
 #### BentoML
 
