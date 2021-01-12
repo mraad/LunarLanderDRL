@@ -116,7 +116,7 @@ class DQNPER:
         errors = q_values - expected_q_values
 
         buffer_priorities = errors.abs().add(self.buffer.eps).pow(self.buffer.alpha)
-        self.buffer.update_priorities(indices, buffer_priorities.detach().numpy())
+        self.buffer.update_priorities(indices, buffer_priorities.detach().cpu().numpy())
 
         weights = priorities. \
             mul(self.buffer.priority_factor). \
