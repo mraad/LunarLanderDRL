@@ -6,11 +6,11 @@ class Utils:
     def dec_schedule(
             start: float,
             final: float,
-            decay: float,
+            ratio: float,
             steps: int,
             log_start: float = -2.0) -> np.array:
         assert steps > 2, "dec_schedule steps should be greater than 2"
-        decay_steps = max(2, int(steps * decay))
+        decay_steps = max(2, int(steps * ratio))
         values = np.logspace(log_start, 0, decay_steps)[::-1]
         v_min = values.min()
         v_max = values.max()
@@ -24,11 +24,11 @@ class Utils:
     def inc_schedule(
             start: float,
             final: float,
-            decay: float,
+            ratio: float,
             steps: int,
             log_start: float = -2.0) -> np.array:
         assert steps > 2, "inc_schedule steps should be greater than 2"
-        decay_steps = max(2, int(steps * decay))
+        decay_steps = max(2, int(steps * ratio))
         values = np.logspace(log_start, 0, decay_steps)
         v_min = values.min()
         v_max = values.max()

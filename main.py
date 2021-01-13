@@ -15,6 +15,12 @@ if __name__ == '__main__':
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     arg_parser.add_argument(
+            '-ne',
+            '--n_episodes',
+            type=int,
+            default=100_000,
+            help='Number of episodes.')
+    arg_parser.add_argument(
             '-eb',
             '--eps_begin',
             type=float,
@@ -27,17 +33,11 @@ if __name__ == '__main__':
             default=0.1,
             help='Epsilon final value.')
     arg_parser.add_argument(
-            '-ed',
-            '--eps_decay',
+            '-er',
+            '--eps_ratio',
             type=float,
             default=0.9,
-            help='Epsilon decay ratio.')
-    arg_parser.add_argument(
-            '-ne',
-            '--n_episodes',
-            type=int,
-            default=100_000,
-            help='Number of episodes.')
+            help='Ratio of episodes till final epsilon value.')
     arg_parser.add_argument(
             '-g',
             '--gamma',
@@ -81,11 +81,11 @@ if __name__ == '__main__':
             default=1.0,
             help='Replay buffer beta final.')
     arg_parser.add_argument(
-            '-rbbd',
-            '--replay_buffer_beta_decay',
+            '-rbbr',
+            '--replay_buffer_beta_ratio',
             type=float,
             default=0.1,
-            help='Replay buffer beta decay.')
+            help='Ratio of episodes till final beta value.')
     arg_parser.add_argument(
             '-ws',
             '--warm_start',

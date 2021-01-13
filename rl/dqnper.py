@@ -19,7 +19,7 @@ class DQNPER:
                  env_name: str = "LunarLander-v2",
                  eps_begin: float = 1.0,
                  eps_final: float = 0.01,
-                 eps_decay: float = 0.4,
+                 eps_ratio: float = 0.4,
                  n_episodes: int = 100_000,
                  gamma: float = 0.99,
                  learning_rate: float = 1.0e-3,
@@ -28,7 +28,7 @@ class DQNPER:
                  replay_buffer_alpha: float = 0.6,
                  replay_buffer_beta_begin: float = 0.4,
                  replay_buffer_beta_final: float = 1.0,
-                 replay_buffer_beta_decay: float = 0.1,
+                 replay_buffer_beta_ratio: float = 0.1,
                  replay_buffer_eps: float = 0.001,
                  target_update_freq: int = 1,
                  target_update_tau: float = 1.0e-3,
@@ -63,8 +63,8 @@ class DQNPER:
         self.rewards = []
         self.optimizer = Adam(self.net.parameters(), lr=learning_rate)
         self.buffer = PEReplayBuffer(replay_buffer_size, batch_size, replay_buffer_alpha, replay_buffer_beta_begin, replay_buffer_eps)
-        self.epsilons = Utils.dec_schedule(eps_begin, eps_final, eps_decay, n_episodes)
-        self.betas = Utils.inc_schedule(replay_buffer_beta_begin, replay_buffer_beta_final, replay_buffer_beta_decay, n_episodes)
+        self.epsilons = Utils.dec_schedule(eps_begin, eps_final, eps_ratio, n_episodes)
+        self.betas = Utils.inc_schedule(replay_buffer_beta_begin, replay_buffer_beta_final, replay_buffer_beta_ratio, n_episodes)
 
     def populate(self) -> None:
         if self.warm_start > 0:
@@ -164,4 +164,5 @@ class DQNPER:
                 sw.add_scalar("score/val", rewards, global_step=e)
                 sw.add_scalar("score/avg", score_avg, global_step=e)
                 sw.add_scalar("episode/eps", self.agent.eps, global_step=e)
+                sw.add_scalar("episode/beta", self.buffer.beta, global_step=e)
                 sw.add_scalar("episode/steps", steps, global_step=e)
