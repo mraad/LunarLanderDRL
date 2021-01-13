@@ -25,8 +25,10 @@ class DQNPER:
                  learning_rate: float = 1.0e-3,
                  batch_size: int = 64,
                  replay_buffer_size: int = 100_000,
-                 replay_buffer_alpha: float = 0.4,
-                 replay_buffer_beta: float = 0.6,
+                 replay_buffer_alpha: float = 0.6,
+                 replay_buffer_beta_begin: float = 0.4,
+                 replay_buffer_beta_final: float = 1.0,
+                 replay_buffer_beta_decay: float = 0.1,
                  replay_buffer_eps: float = 0.001,
                  target_update_freq: int = 1,
                  target_update_tau: float = 1.0e-3,
@@ -50,7 +52,6 @@ class DQNPER:
         self.net.to(self.device)
         self.net_target = MLP(self.n_states, self.n_actions)
         self.net_target.to(self.device)
-        self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
         self.agent = Agent(self.net, self.n_actions, self.device)
         self.gamma = gamma
         self.warm_start = warm_start
@@ -61,9 +62,9 @@ class DQNPER:
         self.ckpt_dir = ckpt_dir
         self.rewards = []
         self.optimizer = Adam(self.net.parameters(), lr=learning_rate)
-        # self.loss = MSELoss()
-        # self.loss.to(self.device)
-        self.buffer = PEReplayBuffer(replay_buffer_size, batch_size, replay_buffer_alpha, replay_buffer_beta, replay_buffer_eps)
+        self.buffer = PEReplayBuffer(replay_buffer_size, batch_size, replay_buffer_alpha, replay_buffer_beta_begin, replay_buffer_eps)
+        self.epsilons = Utils.dec_schedule(eps_begin, eps_final, eps_decay, n_episodes)
+        self.betas = Utils.inc_schedule(replay_buffer_beta_begin, replay_buffer_beta_final, replay_buffer_beta_decay, n_episodes)
 
     def populate(self) -> None:
         if self.warm_start > 0:
@@ -80,10 +81,6 @@ class DQNPER:
         self.net_target.load_state_dict(self.net.state_dict())
 
     def update_target_soft(self) -> None:
-        # for target_param, param in zip(target.parameters(), source.parameters()):
-        #     target_param.data.copy_(
-        #             target_param.data * (1.0 - tau) + param.data * tau
-        #     )
         for target_param, param in zip(self.net_target.parameters(), self.net.parameters()):
             target_param.detach_()
             target_param.copy_(target_param * (1.0 - self.target_update_tau) + param * self.target_update_tau)
@@ -115,14 +112,19 @@ class DQNPER:
 
         errors = q_values - expected_q_values
 
-        buffer_priorities = errors.abs().add(self.buffer.eps).pow(self.buffer.alpha)
+        buffer_priorities = errors. \
+            abs(). \
+            add(self.buffer.eps). \
+            pow(self.buffer.alpha)
         self.buffer.update_priorities(indices, buffer_priorities.detach().cpu().numpy())
 
         weights = priorities. \
-            mul(self.buffer.priority_factor). \
+            mul(self.buffer.num_entries). \
+            div(self.buffer.sum_priorities). \
             add(1e-6). \
             pow(-self.buffer.beta)
         weights = weights / weights.max()
+
         losses = weights * errors ** 2.0
         loss = losses.mean()
 
@@ -138,6 +140,7 @@ class DQNPER:
             self.populate()
             for e in range(self.n_episodes):
                 self.agent.eps = self.epsilons[e]
+                self.buffer.beta = self.betas[e]
                 rewards = 0.0
                 steps = 0
                 done = False

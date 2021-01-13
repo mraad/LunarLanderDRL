@@ -4,7 +4,9 @@ import numpy as np
 
 
 class SumTree:
-    # Binary tree structure where the value of the parent is the sum of its children.
+    """Binary tree structure where the value of the parent is the sum of its children.
+    """
+
     def __init__(self, capacity: int) -> None:
         self.capacity = capacity
         self.tree_len = 2 * capacity - 1
@@ -18,7 +20,7 @@ class SumTree:
         return self.tree[0]
 
     def _propagate(self, index: int, change: float) -> None:
-        """update change to the root node.
+        """Update change to the root node.
         """
         parent = (index - 1) // 2
         self.tree[parent] += change
@@ -39,6 +41,13 @@ class SumTree:
         else:
             return self._retrieve(right, s - self.tree[left])
 
+    def update(self, index: int, priority: float) -> None:
+        """Update priority.
+        """
+        change = priority - self.tree[index]
+        self.tree[index] = priority
+        self._propagate(index, change)
+
     def add(self, priority: float, data: Tuple) -> None:
         """Store priority and data.
         """
@@ -53,13 +62,6 @@ class SumTree:
 
         if self.num_entries < self.capacity:
             self.num_entries += 1
-
-    def update(self, index: int, priority: float) -> None:
-        """Update priority
-        """
-        change = priority - self.tree[index]
-        self.tree[index] = priority
-        self._propagate(index, change)
 
     def get(self, s: float) -> Tuple[int, float, Tuple]:
         """Get priority and data.

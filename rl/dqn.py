@@ -47,7 +47,7 @@ class DQN:
         self.net.to(self.device)
         self.net_target = MLP(self.n_states, self.n_actions)
         self.net_target.to(self.device)
-        self.epsilons = Utils.decay_schedule(eps_begin, eps_final, eps_decay, n_episodes)
+        self.epsilons = Utils.dec_schedule(eps_begin, eps_final, eps_decay, n_episodes)
         self.agent = Agent(self.net, self.n_actions, self.device)
         self.gamma = gamma
         self.lr = learning_rate

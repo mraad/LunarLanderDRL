@@ -38,12 +38,6 @@ if __name__ == '__main__':
             type=int,
             default=100_000,
             help='Number of episodes.')
-    # arg_parser.add_argument(
-    #         '-sr',
-    #         '--sync_rate',
-    #         type=int,
-    #         default=500,
-    #         help='When to sync target network with the main network.')
     arg_parser.add_argument(
             '-g',
             '--gamma',
@@ -69,11 +63,35 @@ if __name__ == '__main__':
             default=100_000,
             help='Replay buffer size.')
     arg_parser.add_argument(
+            '-rba',
+            '--replay_buffer_alpha',
+            type=float,
+            default=0.6,
+            help='Replay buffer alpha.')
+    arg_parser.add_argument(
+            '-rbbb',
+            '--replay_buffer_beta_begin',
+            type=float,
+            default=0.4,
+            help='Replay buffer beta begin.')
+    arg_parser.add_argument(
+            '-rbbf',
+            '--replay_buffer_beta_final',
+            type=float,
+            default=1.0,
+            help='Replay buffer beta final.')
+    arg_parser.add_argument(
+            '-rbbd',
+            '--replay_buffer_beta_decay',
+            type=float,
+            default=0.1,
+            help='Replay buffer beta decay.')
+    arg_parser.add_argument(
             '-ws',
             '--warm_start',
             type=int,
             default=1_000,
-            help='Warming size.')
+            help='Replay buffer warming size.')
     arg_parser.add_argument(
             '-arl',
             '--avg_reward_len',

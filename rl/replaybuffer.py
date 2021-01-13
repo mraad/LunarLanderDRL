@@ -56,17 +56,17 @@ class PEReplayBuffer:
         self.indices = [0] * batch_size
         self.priorities = [0.0] * batch_size
 
-    # @property
-    # def sum_priorities(self) -> float:
-    #     return self.tree.sum_priorities
-    #
-    # @property
-    # def num_entries(self) -> int:
-    #     self.tree.num_entries
+    @property
+    def sum_priorities(self) -> float:
+        return self.tree.sum_priorities
 
     @property
-    def priority_factor(self) -> float:
-        return self.tree.num_entries / self.tree.sum_priorities
+    def num_entries(self) -> int:
+        return self.tree.num_entries
+
+    # @property
+    # def priority_factor(self) -> float:
+    #     return self.tree.num_entries / self.tree.sum_priorities
 
     # def _err_to_priority(self, error: float) -> float:
     #     return (np.abs(error) + self.eps) ** self.alpha
@@ -77,9 +77,9 @@ class PEReplayBuffer:
                reward: float,
                terminal: bool,
                next_state: np.array,
-               error: float = 100_000.0  # To handle the populate function.
+               error: float = 1000.0
                ) -> None:
-        priority = 1.0  # self._err_to_priority(error)
+        priority = (error + self.eps) ** self.alpha
         data = (state, action, reward, terminal, next_state)
         self.tree.add(priority, data)
 
@@ -88,6 +88,7 @@ class PEReplayBuffer:
         priorities = np.random.uniform(size=self.batch_size) * segment
         priorities += np.arange(self.batch_size, dtype=np.float) * segment
         priorities = np.clip(priorities, 0.0, max(self.tree.sum_priorities - 1e-6, 0.0))
+        # print(priorities)
         for i, p in enumerate(priorities):
             index, priority, (state, action, reward, terminal, next_state) = self.tree.get(p)
             self.indices[i] = index

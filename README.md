@@ -27,6 +27,7 @@ pip install jupyter-kite && jupyter labextension install "@kiteco/jupyterlab-kit
 
 - https://github.com/facebookresearch/ReAgent
 - https://github.com/higgsfield/RL-Adventure
+- https://www.paperswithcode.com/method/prioritized-experience-replay#:~:text=Prioritized%20Experience%20Replay%20is%20a%20type%20of%20experience,by%20the%20magnitude%20of%20their%20temporal-difference%20(TD)%20error.
 
 #### BentoML
 
