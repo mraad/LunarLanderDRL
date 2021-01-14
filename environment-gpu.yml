@@ -19,6 +19,7 @@ dependencies:
   - gym=0.18.*
   - shap=0.37.*
   - wandb=0.10.*
+  - click=7.1.*
   - cugraph=0.16.*
   - cudatoolkit=10.2.*
   - pip

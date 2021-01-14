@@ -16,6 +16,7 @@ dependencies:
   - gym=0.18.*
   - shap=0.37.*
   - wandb=0.10.*
+  - click=7.1.*
   - pip
   - pip:
       - torchvision
