@@ -1,9 +1,7 @@
 import click
+import cv2
 import gym
 import torch
-import cv2
-import numpy as np
-# from gym.wrappers.monitoring.video_recorder import VideoRecorder
 
 from rl.model import MLP
 
@@ -11,7 +9,7 @@ from rl.model import MLP
 @click.command()
 @click.option('--env_name', type=str, default="LunarLander-v2", show_default=True, help='Environment name.')
 @click.option('--pth_path', type=str, default="2021_01_13_06_17.pth", help='Path of pytorch weight file.')
-@click.option('--mp4_path', type=str, default="lunarlander.mp4", help='Path of MP4 file.')
+@click.option('--mp4_path', type=str, default="LunarLander.mp4", help='Path of MP4 file.')
 def main(env_name: str,
          pth_path: str,
          mp4_path: str
