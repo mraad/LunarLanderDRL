@@ -17,8 +17,10 @@ dependencies:
   - shap=0.37.*
   - wandb=0.10.*
   - click=7.1.*
+  - swig
   - pip
   - pip:
       - torchvision
       - opencv-python
+      - box2d-py
       - ray[rllib]
