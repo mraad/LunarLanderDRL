@@ -10,9 +10,13 @@ from rl.model import MLP
 @click.option('--env_name', type=str, default="LunarLander-v2", show_default=True, help='Environment name.')
 @click.option('--pth_path', type=str, default="2021_01_13_06_17.pth", help='Path of pytorch weight file.')
 @click.option('--mp4_path', type=str, default="LunarLander.mp4", help='Path of MP4 file.')
+@click.option('--save/--no-save', type=bool, default=True, help="Save mp4 at the end of the run.")
+@click.option('--num-sims', type=int, default=5, help="Number of simulations.")
 def main(env_name: str,
          pth_path: str,
-         mp4_path: str
+         mp4_path: str,
+         save: bool,
+         num_sims: int
          ) -> None:
     frames = []
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,7 +27,7 @@ def main(env_name: str,
         model.load_state_dict(torch.load(pth_path, map_location=device))
         model.eval()
 
-        for i in range(5):
+        for i in range(num_sims):
             state = env.reset()
             done = False
             while not done:
@@ -33,12 +37,13 @@ def main(env_name: str,
                 action = model(state).argmax().item()
                 # action = env.action_space.sample()
                 state, reward, done, _ = env.step(action)
-    w, h, c = frames[0].shape
-    s = (h - w) // 2
-    out = cv2.VideoWriter(mp4_path, cv2.VideoWriter_fourcc(*'mp4v'), 48, (w, w))
-    for f in frames:
-        out.write(f[:, s:h - s + 1, :])
-    out.release()
+    if save:
+        w, h, c = frames[0].shape
+        s = (h - w) // 2
+        out = cv2.VideoWriter(mp4_path, cv2.VideoWriter_fourcc(*'mp4v'), 48, (w, w))
+        for f in frames:
+            out.write(f[:, s:h - s + 1, :])
+        out.release()
 
 
 if __name__ == '__main__':
