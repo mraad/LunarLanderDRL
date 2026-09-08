@@ -105,5 +105,5 @@ the README showing a policy that no longer exists.
 - **Quote multi-seed numbers.** The spread across training seeds is wider than most
   changes worth testing: three seeds of the identical config scored 280.6, 243.3 and
   273.1 on the same held-out set. A single-seed result cannot separate a real
-  improvement from a lucky draw. `models/lunarlander-v3.pth` is the best of three and
-  its 30/30 is not the expected outcome.
+  improvement from a lucky draw. `models/lunarlander-v3.pth` is seed 44, chosen as the
+  seed nearest the pooled mean rather than the best of the three.

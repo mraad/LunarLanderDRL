@@ -9,7 +9,7 @@ craft, plus a small tool that replays a trained policy into an MP4.
 </p>
 
 <p align="center">
-  <sub>Two consecutive rollouts of the trained policy, scoring 296.9 and 307.3.</sub>
+  <sub>Two consecutive rollouts of the shipped policy, scoring 308.1 and 272.1.</sub>
 </p>
 
 The environment gives an 8-dimensional observation (position, velocity, angle, angular
@@ -181,9 +181,9 @@ Run with three training seeds:
 
 | Training seed | Mean | Median | Solved (>= 200) | Crashed (< 0) | Worst |
 | --- | --- | --- | --- | --- | --- |
-| 42 (the shipped checkpoint) | 280.6 | 281.2 | 30 / 30 | 0 | 249.8 |
+| 42 | 280.6 | 281.2 | 30 / 30 | 0 | 249.8 |
 | 43 | 243.3 | 278.4 | 24 / 30 | 0 | 21.0 |
-| 44 | 273.1 | 286.5 | 28 / 30 | 0 | 33.7 |
+| 44 (the shipped checkpoint) | 273.1 | 286.5 | 28 / 30 | 0 | 33.7 |
 | **pooled, 90 episodes** | **265.7** | **282.1** | **82 / 90** | **0 / 90** | 21.0 |
 
 Across-seed mean 265.7 +/- 16.1. A 1-step run of the same configuration scored mean
@@ -193,10 +193,11 @@ Across-seed mean 265.7 +/- 16.1. A 1-step run of the same configuration scored m
   seeds, against 2 in 30 for 1-step. This is the hovering-into-timeout failure
   disappearing, and it is the part n-step reliably fixes. See
   [why n-step killed the hovering](#why-n-step-killed-the-hovering).
-- **The perfect 30/30 belongs to seed 42 alone.** Seeds 43 and 44 leave 6 and 2 episodes
-  below 200; pooled, 8 of 90 fall short — soft or slow landings scoring 21-46, not
-  crashes. The shipped checkpoint is the best of three, so read its 30/30 as a
-  favourable draw, not the expected outcome.
+- **No seed is perfect, and the shipped one is deliberately not the best.** Seed 42
+  reached 30/30 but is the luckiest of the three; `models/lunarlander-v3.pth` is seed 44
+  instead, whose 28/30 and mean 273.1 sit nearest the pooled average. Pooled, 8 of 90
+  episodes fall short of 200 — soft or slow landings scoring 21-46, not crashes. What
+  you download should behave like a typical run, not like the best draw.
 
 ### Why n-step killed the hovering
 
