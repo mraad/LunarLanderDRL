@@ -32,6 +32,7 @@ considered solved.
 | Double DQN + Huber | `rl/dqnper.py` | online net selects, target net prices; smooth L1 loss; grad-norm clip |
 | Training loop (PER) | `rl/dqnper.py` | `DQNPER`, the one `main.py` runs |
 | Training loop (baseline) | `rl/dqn.py` | `DQN`, uniform replay + hard target sync, kept for comparison |
+| Trained weights | `models/lunarlander-v3.pth` | 175 KB, the policy in the GIF; see [Measured result](#measured-result) |
 
 ### How PER works here
 
@@ -213,10 +214,14 @@ per-step kernel launch overhead would likely beat the compute saving.
 
 ## Render
 
+A trained checkpoint ships with the repo at `models/lunarlander-v3.pth`, and is the
+default, so this works straight after `uv sync`:
+
 ```bash
-uv run render.py --pth_path ckpt/2026_09_08_14_30.pth --num-sims 6 --seed 1000
-uv run render.py --pth_path ckpt/2026_09_08_14_30.pth --no-save   # score only, no video
-uv run render.py --pth_path ckpt/2026_09_08_14_30.pth --seed 7    # different rollout
+uv run render.py                                  # 5 rollouts -> LunarLander.mp4
+uv run render.py --num-sims 6 --seed 1000         # the rollouts shown in the GIF above
+uv run render.py --no-save                        # scores only, no video
+uv run render.py --pth_path ckpt/<your>.pth       # a checkpoint you trained
 ```
 
 Frames are centre-cropped to a square and streamed straight into `LunarLander.mp4`, so

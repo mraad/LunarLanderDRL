@@ -15,6 +15,9 @@ ckpt/
 *.mp4
 video
 
+# ...except the released checkpoint, which is a tracked artefact
+!models/*.pth
+
 # Local environment and editors
 .env
 .idea

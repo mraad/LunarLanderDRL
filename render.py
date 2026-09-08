@@ -28,7 +28,7 @@ def write_frame(writer: Optional[cv2.VideoWriter],
 
 @click.command()
 @click.option('--env_name', type=str, default="LunarLander-v3", show_default=True, help='Environment name.')
-@click.option('--pth_path', type=str, default="2021_01_13_06_17.pth", show_default=True, help='Path of pytorch weight file.')
+@click.option('--pth_path', type=str, default="models/lunarlander-v3.pth", show_default=True, help='Path of pytorch weight file.')
 @click.option('--mp4_path', type=str, default="LunarLander.mp4", show_default=True, help='Path of MP4 file.')
 @click.option('--save/--no-save', default=True, show_default=True, help="Save mp4 at the end of the run.")
 @click.option('--num-sims', type=int, default=5, show_default=True, help="Number of simulations.")
