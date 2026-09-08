@@ -23,7 +23,7 @@ considered solved.
 | --- | --- | --- |
 | Q-network | `rl/model.py` | MLP `8 → 256 → 128 → 64 → 4`, ReLU, Xavier initialised |
 | Epsilon-greedy policy | `rl/agent.py` | epsilon annealed per episode |
-| Uniform replay | `rl/replaybuffer.py` | `ReplayBuffer`, ring buffer of flat numpy columns |
+| Transition storage | `rl/replaybuffer.py` | `ReplayBuffer`, ring buffer of flat numpy columns |
 | Prioritized replay | `rl/replaybuffer.py` | `PEReplayBuffer`, proportional PER with importance sampling |
 | Sum tree | `rl/sumtree.py` | `O(log n)` priority update and sampling |
 | Schedules | `rl/utils.py` | log-spaced epsilon decay and beta anneal |
@@ -31,8 +31,7 @@ considered solved.
 | Best-model saving | `rl/checkpoint.py` | writes `ckpt/<timestamp>.pth` on a new best *greedy* score |
 | Double DQN + Huber | `rl/dqnper.py` | online net selects, target net prices; smooth L1 loss; grad-norm clip |
 | n-step returns | `rl/dqnper.py` | `_fold`/`remember`/`flush`, rewards folded over `--n_step` before bootstrapping |
-| Training loop (PER) | `rl/dqnper.py` | `DQNPER`, the one `main.py` runs |
-| Training loop (baseline) | `rl/dqn.py` | `DQN`, uniform replay + hard target sync, kept for comparison |
+| Training loop | `rl/dqnper.py` | `DQNPER`, the agent `main.py` runs |
 | Trained weights | `models/lunarlander-v3.pth` | 175 KB, the policy in the GIF; see [Measured result](#measured-result) |
 
 ### How PER works here
@@ -290,10 +289,9 @@ render.py            policy rollout to MP4 (click)
 test_rl.py           self-checks, plus a short end-to-end training run
 rl/agent.py          epsilon-greedy policy
 rl/checkpoint.py     best-score model saving
-rl/dqn.py            baseline DQN training loop
-rl/dqnper.py         DQN + PER training loop
+rl/dqnper.py         the training loop
 rl/model.py          Q-network
-rl/replaybuffer.py   uniform and prioritized replay
+rl/replaybuffer.py   ring buffer storage + prioritized replay
 rl/sumtree.py        priority sum tree
 rl/utils.py          epsilon / beta schedules, env space validation
 ```
