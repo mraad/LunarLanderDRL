@@ -102,3 +102,8 @@ the README showing a policy that no longer exists.
 - Claims about performance in the README are measured numbers. If you change training
   and quote a result, run the held-out evaluation rather than quoting the training log,
   and say when a comparison is a before/after rather than a controlled ablation.
+- **Quote multi-seed numbers.** The spread across training seeds is wider than most
+  changes worth testing: three seeds of the identical config scored 280.6, 243.3 and
+  273.1 on the same held-out set. A single-seed result cannot separate a real
+  improvement from a lucky draw. `models/lunarlander-v3.pth` is the best of three and
+  its 30/30 is not the expected outcome.

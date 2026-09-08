@@ -172,24 +172,31 @@ uv run main.py --n_episodes 4000 --eps_ratio 0.35 --eps_final 0.01 \
                --eval_episodes 20 --solved_score 275
 ```
 
-Stops early at **episode 474** on a greedy score of 283.7, roughly 10 minutes on an
-M-series CPU. Evaluated on 30 held-out seeds (1000-1029, disjoint from the seeds used for
-selection, so the number is not the one that was optimised), against the same run
-*without* n-step returns:
+Stops early between episode 474 and 999 depending on the seed, roughly 10 minutes on an
+M-series CPU. Every checkpoint below is evaluated on the same 30 held-out seeds
+(1000-1029), disjoint from the seeds training selected on (`seed + 500`), so these are
+not the numbers that were optimised.
 
-| Metric | 1-step | 3-step |
-| --- | --- | --- |
-| Mean | 220.3 | **280.6** |
-| Median | 245.4 | **281.2** |
-| Solved (>= 200) | 25 / 30 | **30 / 30** |
-| Crashed (< 0) | 2 / 30 | **0 / 30** |
-| Worst | -121.7 | **249.8** |
+Run with three training seeds:
 
-The worst 3-step episode scores higher than the *median* 1-step episode. See
-[why n-step killed the hovering](#why-n-step-killed-the-hovering).
+| Training seed | Mean | Median | Solved (>= 200) | Crashed (< 0) | Worst |
+| --- | --- | --- | --- | --- | --- |
+| 42 (the shipped checkpoint) | 280.6 | 281.2 | 30 / 30 | 0 | 249.8 |
+| 43 | 243.3 | 278.4 | 24 / 30 | 0 | 21.0 |
+| 44 | 273.1 | 286.5 | 28 / 30 | 0 | 33.7 |
+| **pooled, 90 episodes** | **265.7** | **282.1** | **82 / 90** | **0 / 90** | 21.0 |
 
-Single seed, single run. High-variance algorithm — treat these as one sample, not a
-benchmark, and use 3-5 seeds if you need a defensible number.
+Across-seed mean 265.7 +/- 16.1. A 1-step run of the same configuration scored mean
+220.3, 25/30 solved, 2/30 crashed, worst -121.7. So:
+
+- **Crashes are gone, and that result is robust.** Zero in all 90 episodes across three
+  seeds, against 2 in 30 for 1-step. This is the hovering-into-timeout failure
+  disappearing, and it is the part n-step reliably fixes. See
+  [why n-step killed the hovering](#why-n-step-killed-the-hovering).
+- **The perfect 30/30 belongs to seed 42 alone.** Seeds 43 and 44 leave 6 and 2 episodes
+  below 200; pooled, 8 of 90 fall short — soft or slow landings scoring 21-46, not
+  crashes. The shipped checkpoint is the best of three, so read its 30/30 as a
+  favourable draw, not the expected outcome.
 
 ### Why n-step killed the hovering
 
