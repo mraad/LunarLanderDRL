@@ -4,6 +4,14 @@ A Deep Q-Network with Prioritized Experience Replay (PER) that learns to land th
 [Gymnasium `LunarLander-v3`](https://gymnasium.farama.org/environments/box2d/lunar_lander/)
 craft, plus a small tool that replays a trained policy into an MP4.
 
+<p align="center">
+  <img src="docs/lunarlander.gif" width="320" alt="Trained agent landing between the flags on two consecutive seeds">
+</p>
+
+<p align="center">
+  <sub>Two consecutive rollouts of the trained policy, scoring 270.4 and 257.6.</sub>
+</p>
+
 The environment gives an 8-dimensional observation (position, velocity, angle, angular
 velocity, two leg-contact flags) and takes one of 4 discrete actions (do nothing, fire
 left / main / right engine). An episode scoring an average of 200 over 100 runs is
@@ -216,7 +224,17 @@ memory stays flat regardless of `--num-sims`. Per-simulation rewards are echoed 
 terminal. `uv run render.py --help` lists the flags.
 
 Checkpoints, TensorBoard logs and the MP4 are all gitignored — they are outputs, not
-sources.
+sources. The README GIF is the one committed artefact, regenerated with:
+
+```bash
+uv run render.py --pth_path ckpt/<best>.pth --mp4_path clip.mp4 --num-sims 2 --seed 1000
+ffmpeg -i clip.mp4 -vf "fps=20,scale=320:-1:flags=lanczos,crop=320:320,palettegen=max_colors=32" pal.png
+ffmpeg -i clip.mp4 -i pal.png \
+  -lavfi "fps=20,scale=320:-1:flags=lanczos,crop=320:320 [x]; [x][1:v] paletteuse=dither=bayer" \
+  docs/lunarlander.gif
+```
+
+The scene is nearly monochrome, so a 32-colour palette keeps it under 250 KB.
 
 ## Tests
 
