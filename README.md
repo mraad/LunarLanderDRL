@@ -9,7 +9,7 @@ craft, plus a small tool that replays a trained policy into an MP4.
 </p>
 
 <p align="center">
-  <sub>Two consecutive rollouts of the trained policy, scoring 270.4 and 257.6.</sub>
+  <sub>Two consecutive rollouts of the trained policy, scoring 296.9 and 307.3.</sub>
 </p>
 
 The environment gives an 8-dimensional observation (position, velocity, angle, angular
@@ -30,6 +30,7 @@ considered solved.
 | Greedy evaluation | `rl/dqnper.py` | `evaluate`, fixed-seed greedy rollouts on a separate env |
 | Best-model saving | `rl/checkpoint.py` | writes `ckpt/<timestamp>.pth` on a new best *greedy* score |
 | Double DQN + Huber | `rl/dqnper.py` | online net selects, target net prices; smooth L1 loss; grad-norm clip |
+| n-step returns | `rl/dqnper.py` | `_fold`/`remember`/`flush`, rewards folded over `--n_step` before bootstrapping |
 | Training loop (PER) | `rl/dqnper.py` | `DQNPER`, the one `main.py` runs |
 | Training loop (baseline) | `rl/dqn.py` | `DQN`, uniform replay + hard target sync, kept for comparison |
 | Trained weights | `models/lunarlander-v3.pth` | 175 KB, the policy in the GIF; see [Measured result](#measured-result) |
@@ -125,11 +126,12 @@ uv run main.py --n_episodes 2000 --eps_ratio 0.5 --learning_rate 5e-4
 | `-tuf, --target_update_freq` | `1` | Steps between target soft updates |
 | `-tut, --target_update_tau` | `1e-3` | Soft update rate |
 | `-gc, --grad_clip` | `10.0` | Max gradient norm per optimizer step |
+| `-ns, --n_step` | `3` | Steps of reward folded into one transition |
 | `-ws, --warm_start` | `1000` | Random transitions loaded before learning starts |
 | `-arl, --avg_reward_len` | `100` | Window for the running average score |
 | `-evf, --eval_freq` | `25` | Episodes between greedy evaluations |
-| `-eve, --eval_episodes` | `10` | Greedy episodes per evaluation; checkpoints select on their mean |
-| `-ss, --solved_score` | `260.0` | Stop training once the greedy mean reaches this |
+| `-eve, --eval_episodes` | `20` | Greedy episodes per evaluation; checkpoints select on their mean |
+| `-ss, --solved_score` | `275.0` | Stop training once the greedy mean reaches this |
 | `-s, --seed` | `42` | Seed for numpy, torch, the environment and its action space |
 | `--logs_dir` | `./logs` | TensorBoard output |
 | `--ckpt_dir` | `./ckpt` | Checkpoint output |
@@ -167,27 +169,50 @@ written until a greedy evaluation scores above zero, so an untrained run leaves 
 
 ```bash
 uv run main.py --n_episodes 4000 --eps_ratio 0.35 --eps_final 0.01 \
-               --learning_rate 5e-4 --warm_start 5000 --solved_score 260
+               --learning_rate 5e-4 --warm_start 5000 --n_step 3 \
+               --eval_episodes 20 --solved_score 275
 ```
 
-Stops early at **episode 499** on a greedy score of 269.1, roughly 10 minutes on an
+Stops early at **episode 474** on a greedy score of 283.7, roughly 10 minutes on an
 M-series CPU. Evaluated on 30 held-out seeds (1000-1029, disjoint from the seeds used for
-selection, so the number is not the one that was optimised):
+selection, so the number is not the one that was optimised), against the same run
+*without* n-step returns:
 
-| Metric | Value |
-| --- | --- |
-| Mean | **220.3** |
-| Median | 245.4 |
-| Solved (>= 200) | **25 / 30** |
-| Crashed (< 0) | 2 / 30 |
-| Worst | -121.7 |
+| Metric | 1-step | 3-step |
+| --- | --- | --- |
+| Mean | 220.3 | **280.6** |
+| Median | 245.4 | **281.2** |
+| Solved (>= 200) | 25 / 30 | **30 / 30** |
+| Crashed (< 0) | 2 / 30 | **0 / 30** |
+| Worst | -121.7 | **249.8** |
 
-Above the 200 solve threshold on average, but not perfect: roughly one rollout in
-fifteen still fails. A short video will usually show clean landings throughout and
-therefore understates that tail.
+The worst 3-step episode scores higher than the *median* 1-step episode. See
+[why n-step killed the hovering](#why-n-step-killed-the-hovering).
 
 Single seed, single run. High-variance algorithm — treat these as one sample, not a
 benchmark, and use 3-5 seeds if you need a defensible number.
+
+### Why n-step killed the hovering
+
+The 1-step agent's failure mode was hovering: descending to just above the pad and
+holding there until the 1000-step limit. That is not random flailing, it is rational
+given slow credit assignment. `LunarLander` pays `+100` once, at touchdown, but pays
+continuous shaping reward for sitting near the pad at low velocity. Hovering banks the
+shaping reward now; landing's bonus sits ~300 steps away and, with one-step
+bootstrapping, creeps backwards through the value function one state per update. For a
+long stretch of training, hovering genuinely *is* the better-valued action, and some
+states never escape that local optimum.
+
+Folding three rewards into each stored transition moves the landing bonus back three
+times faster per update. Two details make it correct rather than merely faster:
+
+- The bootstrap discount becomes `gamma ** k`, not `gamma`, so the buffer carries a
+  per-transition `discounts` column. Reusing `gamma` there would quietly mis-scale every
+  target.
+- The window is flushed at each episode boundary, and the fold stops at a terminal inside
+  the window. Without the flush the last `n_step - 1` transitions of every episode — the
+  ones containing the actual touchdown — would be dropped, which is exactly the data that
+  teaches landing.
 
 ## Known limitations and what to do next
 
@@ -202,11 +227,9 @@ known gap rather than a bug.
    schedule by `self.steps`.
 3. **`replay_buffer_beta_ratio` defaults to `0.1`**, so β reaches 1.0 after a tenth of
    training. The PER paper anneals β across the whole run.
-4. **n-step returns (n=3)** — the best sample-efficiency gain per line still on the
-   table. Needs a small staging `deque` ahead of `append`.
-5. **Dueling head** (`rl/model.py`) — separate value and advantage streams. Consistently
+4. **Dueling head** (`rl/model.py`) — separate value and advantage streams. Consistently
    helps here, but changes `state_dict` keys and so invalidates existing `.pth` files.
-6. **`max_priority` never decays** (`rl/replaybuffer.py`). One large TD error inflates
+5. **`max_priority` never decays** (`rl/replaybuffer.py`). One large TD error inflates
    the entry priority of every later transition for the rest of the run.
 
 Not worth it on this problem: MPS on Apple silicon. The network is small enough that

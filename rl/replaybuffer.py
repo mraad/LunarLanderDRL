@@ -24,6 +24,9 @@ class ReplayBuffer:
         self.rewards = np.zeros(capacity, dtype=np.float32)
         self.terminals = np.zeros(capacity, dtype=bool)
         self.next_states = np.zeros((capacity, n_states), dtype=np.float32)
+        # Discount to apply to the bootstrapped value of next_state. gamma for a plain
+        # one-step transition, gamma ** k once k rewards have been folded into one.
+        self.discounts = np.zeros(capacity, dtype=np.float32)
         self.pos = 0
         self.size = 0
 
@@ -35,7 +38,8 @@ class ReplayBuffer:
                action: int,
                reward: float,
                terminal: bool,
-               next_state: np.ndarray
+               next_state: np.ndarray,
+               discount: float
                ) -> int:
         """Store a transition, overwriting the oldest one once full. Returns its slot."""
         slot = self.pos
@@ -44,6 +48,7 @@ class ReplayBuffer:
         self.rewards[slot] = reward
         self.terminals[slot] = terminal
         self.next_states[slot] = next_state
+        self.discounts[slot] = discount
         self.pos = (slot + 1) % self.capacity
         self.size = min(self.size + 1, self.capacity)
         return slot
@@ -53,7 +58,8 @@ class ReplayBuffer:
                 self.actions[indices],
                 self.rewards[indices],
                 self.terminals[indices],
-                self.next_states[indices])
+                self.next_states[indices],
+                self.discounts[indices])
 
     def sample(self) -> Tuple[np.ndarray, ...]:
         return self._gather(np.random.randint(0, self.size, self.batch_size))
@@ -90,11 +96,12 @@ class PEReplayBuffer(ReplayBuffer):
                action: int,
                reward: float,
                terminal: bool,
-               next_state: np.ndarray
+               next_state: np.ndarray,
+               discount: float
                ) -> int:
         # A fresh transition has no TD error yet, so give it the highest priority seen so
         # far: it is guaranteed to be replayed at least once, then re-priced from its error.
-        slot = super().append(state, action, reward, terminal, next_state)
+        slot = super().append(state, action, reward, terminal, next_state, discount)
         self.tree.update(slot, self.max_priority)
         return slot
 

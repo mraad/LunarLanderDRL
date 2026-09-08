@@ -69,7 +69,7 @@ class DQN:
         for _ in range(self.warm_start):
             action = self.env.action_space.sample()
             next_state, reward, terminated, truncated, _ = self.env.step(action)
-            self.buffer.append(state, action, float(reward), terminated, next_state)
+            self.buffer.append(state, action, float(reward), terminated, next_state, self.gamma)
             state = self.env.reset()[0] if terminated or truncated else next_state
 
     def learn(self,
@@ -78,22 +78,23 @@ class DQN:
               reward: float,
               terminal: bool,
               new_state: np.ndarray) -> None:
-        self.buffer.append(old_state, action, reward, terminal, new_state)
+        self.buffer.append(old_state, action, reward, terminal, new_state, self.gamma)
 
-        states, actions, rewards, terminals, next_states = self.buffer.sample()
+        states, actions, rewards, terminals, next_states, discounts = self.buffer.sample()
 
         states = torch.from_numpy(states).to(self.device)
         actions = torch.from_numpy(actions).to(self.device)
         rewards = torch.from_numpy(rewards).to(self.device)
         terminals = torch.from_numpy(terminals).to(self.device)
         next_states = torch.from_numpy(next_states).to(self.device)
+        discounts = torch.from_numpy(discounts).to(self.device)
 
         state_action_values = self.net(states).gather(1, actions.unsqueeze(-1)).squeeze(-1)
 
         with torch.no_grad():
             next_state_values = self.net_target(next_states).max(dim=1).values
             next_state_values[terminals] = 0.0
-            expected_state_action_values = rewards + self.gamma * next_state_values
+            expected_state_action_values = rewards + discounts * next_state_values
 
         loss = self.loss(state_action_values, expected_state_action_values)
 

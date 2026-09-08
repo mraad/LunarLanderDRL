@@ -37,7 +37,7 @@ def test_sum_tree_handles_odd_capacity() -> None:
 def _fill(buffer: ReplayBuffer, n: int) -> None:
     for i in range(n):
         buffer.append(np.full(3, i, dtype=np.float32), i % 2, float(i), i % 5 == 0,
-                      np.full(3, -i, dtype=np.float32))
+                      np.full(3, -i, dtype=np.float32), 0.99)
 
 
 def test_replay_buffer_wraps_and_samples() -> None:
@@ -47,9 +47,10 @@ def test_replay_buffer_wraps_and_samples() -> None:
     # Slots 0 and 1 were overwritten by transitions 4 and 5.
     assert sorted(buffer.rewards.tolist()) == [2.0, 3.0, 4.0, 5.0]
 
-    states, actions, rewards, terminals, next_states = buffer.sample()
+    states, actions, rewards, terminals, next_states, discounts = buffer.sample()
     assert states.shape == (2, 3) and next_states.shape == (2, 3)
-    assert actions.shape == rewards.shape == terminals.shape == (2,)
+    assert actions.shape == rewards.shape == terminals.shape == discounts.shape == (2,)
+    assert (discounts == np.float32(0.99)).all()
     assert states.dtype == np.float32 and actions.dtype == np.int64
     # Columns stay aligned: state == reward and next_state == -reward.
     assert (states[:, 0] == rewards).all()
@@ -60,7 +61,7 @@ def test_per_never_samples_unwritten_slots() -> None:
     buffer = PEReplayBuffer(capacity=1024, batch_size=32, n_states=3)
     _fill(buffer, 40)
     for _ in range(50):
-        _, _, rewards, _, _, indices, weights = buffer.sample()
+        _, _, rewards, _, _, _, indices, weights = buffer.sample()
         assert (indices < buffer.size).all(), indices
         assert (rewards < 40.0).all()
         assert weights.max() == 1.0 and (weights > 0.0).all()
@@ -75,11 +76,11 @@ def test_per_favours_high_priority_transitions() -> None:
     errors[7] = 100.0
     buffer.update_priorities(np.arange(64), errors)
 
-    counts = np.bincount(np.concatenate([buffer.sample()[5] for _ in range(20)]), minlength=64)
+    counts = np.bincount(np.concatenate([buffer.sample()[6] for _ in range(20)]), minlength=64)
     assert counts[7] > 0.5 * counts.sum(), counts[7]
 
     # A newly appended transition inherits the highest priority seen, so it is replayed.
-    buffer.append(np.zeros(3, np.float32), 0, 0.0, False, np.zeros(3, np.float32))
+    buffer.append(np.zeros(3, np.float32), 0, 0.0, False, np.zeros(3, np.float32), 0.99)
     assert buffer.tree.priority(0) == buffer.max_priority >= 100.0
 
 
@@ -87,7 +88,7 @@ def test_per_weights_are_inverse_to_priority() -> None:
     buffer = PEReplayBuffer(capacity=8, batch_size=8, n_states=3, alpha=1.0, eps=0.0, beta=1.0)
     _fill(buffer, 8)
     buffer.update_priorities(np.arange(8), np.arange(1.0, 9.0))
-    _, _, _, _, _, indices, weights = buffer.sample()
+    _, _, _, _, _, _, indices, weights = buffer.sample()
     # w = (N * p / sum_p) ** -beta, so the rarest sample carries the largest weight.
     order = np.argsort(indices)
     assert (np.diff(weights[order]) <= 1e-6).all(), weights[order]
@@ -109,6 +110,48 @@ def test_schedules_span_the_range_then_hold() -> None:
     # ratio of 1 leaves no padding, and ratio above 1 must not produce a negative pad.
     assert len(dec_schedule(1.0, 0.0, 1.0, 50)) == 50
     assert len(inc_schedule(0.0, 1.0, 2.0, 50)) == 50
+
+
+def test_n_step_fold_accumulates_discounted_return() -> None:
+    """The folded return and bootstrap discount must match the closed form."""
+    import tempfile
+
+    from rl.dqnper import DQNPER
+
+    dqn = DQNPER(n_episodes=3, warm_start=64, batch_size=32, replay_buffer_size=256,
+                 n_step=3, gamma=0.9, logs_dir=tempfile.mkdtemp(), ckpt_dir=tempfile.mkdtemp())
+    g, s0, s3 = 0.9, np.zeros(8, np.float32), np.full(8, 3.0, np.float32)
+
+    dqn.pending.clear()
+    for i, r in enumerate((1.0, 2.0, 5.0)):
+        dqn.pending.append((np.full(8, float(i), np.float32), i, r, False, s3))
+    state, action, total, terminated, next_state, discount = dqn._fold()
+    assert np.allclose(total, 1.0 + g * 2.0 + g * g * 5.0)
+    assert np.isclose(discount, g ** 3) and not terminated
+    assert action == 0 and (state == s0).all() and (next_state == s3).all()
+
+    # A terminal inside the window truncates the sum -- the return must not run past it.
+    dqn.pending.clear()
+    for i, (r, term) in enumerate(((1.0, False), (2.0, True), (5.0, False))):
+        dqn.pending.append((np.full(8, float(i), np.float32), i, r, term, s3))
+    _, _, total, terminated, _, discount = dqn._fold()
+    assert np.allclose(total, 1.0 + g * 2.0), total
+    assert terminated and np.isclose(discount, g ** 2)
+
+
+def test_n_step_flush_drains_the_window() -> None:
+    import tempfile
+
+    from rl.dqnper import DQNPER
+
+    dqn = DQNPER(n_episodes=3, warm_start=64, batch_size=32, replay_buffer_size=256,
+                 n_step=3, logs_dir=tempfile.mkdtemp(), ckpt_dir=tempfile.mkdtemp())
+    before = len(dqn.buffer)
+    for i in range(2):  # fewer than n_step, so nothing is stored yet
+        dqn.remember(np.zeros(8, np.float32), 0, 1.0, False, np.zeros(8, np.float32))
+    assert len(dqn.buffer) == before
+    dqn.flush()
+    assert len(dqn.buffer) == before + 2 and not dqn.pending
 
 
 def test_training_runs_end_to_end(tmp_path=None) -> None:

@@ -118,6 +118,12 @@ if __name__ == '__main__':
             default=10.0,
             help='Max gradient norm, clipped before each optimizer step.')
     arg_parser.add_argument(
+            '-ns',
+            '--n_step',
+            type=int,
+            default=3,
+            help='Steps of reward folded into one transition before bootstrapping.')
+    arg_parser.add_argument(
             '-ws',
             '--warm_start',
             type=int,
