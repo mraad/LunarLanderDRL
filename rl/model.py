@@ -2,15 +2,6 @@ import torch
 import torch.nn as nn
 
 
-class ResNet(nn.Module):
-    def __init__(self, module: nn.Module) -> None:
-        super().__init__()
-        self.module = module
-
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        return self.module(inputs) + inputs
-
-
 class LinearRelu(nn.Module):
     def __init__(self, inp_dim: int, out_dim: int) -> None:
         super().__init__()

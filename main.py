@@ -1,6 +1,7 @@
-import os
 import argparse
 import logging
+import os
+
 from rl.dqnper import DQNPER
 
 
@@ -12,8 +13,14 @@ def _main_(args: argparse.Namespace) -> None:
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
     arg_parser = argparse.ArgumentParser(
+            description='Train a DQN with prioritized experience replay.',
             formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+    arg_parser.add_argument(
+            '-en',
+            '--env_name',
+            default="LunarLander-v3",
+            help='Gym environment name.')
     arg_parser.add_argument(
             '-ne',
             '--n_episodes',
@@ -67,7 +74,7 @@ if __name__ == '__main__':
             '--replay_buffer_alpha',
             type=float,
             default=0.6,
-            help='Replay buffer alpha.')
+            help='Replay buffer alpha, 0 is uniform sampling and 1 is fully prioritized.')
     arg_parser.add_argument(
             '-rbbb',
             '--replay_buffer_beta_begin',
@@ -87,6 +94,30 @@ if __name__ == '__main__':
             default=0.1,
             help='Ratio of episodes till final beta value.')
     arg_parser.add_argument(
+            '-rbe',
+            '--replay_buffer_eps',
+            type=float,
+            default=0.001,
+            help='Replay buffer priority floor, keeps zero error transitions sampleable.')
+    arg_parser.add_argument(
+            '-tuf',
+            '--target_update_freq',
+            type=int,
+            default=1,
+            help='Steps between target network soft updates.')
+    arg_parser.add_argument(
+            '-tut',
+            '--target_update_tau',
+            type=float,
+            default=1.0e-3,
+            help='Target network soft update rate.')
+    arg_parser.add_argument(
+            '-gc',
+            '--grad_clip',
+            type=float,
+            default=10.0,
+            help='Max gradient norm, clipped before each optimizer step.')
+    arg_parser.add_argument(
             '-ws',
             '--warm_start',
             type=int,
@@ -98,6 +129,24 @@ if __name__ == '__main__':
             type=int,
             default=100,
             help='Average reward length.')
+    arg_parser.add_argument(
+            '-evf',
+            '--eval_freq',
+            type=int,
+            default=25,
+            help='Episodes between greedy evaluations.')
+    arg_parser.add_argument(
+            '-eve',
+            '--eval_episodes',
+            type=int,
+            default=10,
+            help='Greedy episodes per evaluation; the checkpoint is selected on their mean.')
+    arg_parser.add_argument(
+            '-ss',
+            '--solved_score',
+            type=float,
+            default=260.0,
+            help='Stop once the greedy evaluation mean reaches this.')
     arg_parser.add_argument(
             '-s',
             '--seed',

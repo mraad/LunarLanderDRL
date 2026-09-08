@@ -1,5 +1,4 @@
-from collections import deque
-from typing import List, Tuple
+from typing import Tuple
 
 import numpy as np
 
@@ -7,109 +6,119 @@ from .sumtree import SumTree
 
 
 class ReplayBuffer:
-    def __init__(self,
-                 capacity: int,
-                 batch_size: int
-                 ) -> None:
-        self.batch_size = batch_size
-        self.buffer = deque(maxlen=capacity)
+    """Fixed capacity ring buffer of transitions held in flat numpy arrays.
 
-    def __len__(self) -> int:
-        return len(self.buffer)
+    Storing columns rather than tuples keeps a sampled batch contiguous, so it can be
+    handed to ``torch.from_numpy`` without a per-element copy.
+    """
 
-    def append(self,
-               state: np.array,
-               action: int,
-               reward: float,
-               terminal: bool,
-               next_state: np.array
-               ) -> None:
-        self.buffer.append((state, action, reward, terminal, next_state))
-
-    def sample(self) -> Tuple[List[np.array], List[int], List[float], List[bool], List[np.array]]:
-        indices = np.random.choice(len(self.buffer), self.batch_size, replace=False)
-        states, actions, rewards, terminals, next_states = zip(
-                *[self.buffer[idx] for idx in indices]
-        )
-        return states, actions, rewards, terminals, next_states
-
-
-class PEReplayBuffer:
     def __init__(self,
                  capacity: int,
                  batch_size: int,
+                 n_states: int
+                 ) -> None:
+        self.capacity = capacity
+        self.batch_size = batch_size
+        self.states = np.zeros((capacity, n_states), dtype=np.float32)
+        self.actions = np.zeros(capacity, dtype=np.int64)
+        self.rewards = np.zeros(capacity, dtype=np.float32)
+        self.terminals = np.zeros(capacity, dtype=bool)
+        self.next_states = np.zeros((capacity, n_states), dtype=np.float32)
+        self.pos = 0
+        self.size = 0
+
+    def __len__(self) -> int:
+        return self.size
+
+    def append(self,
+               state: np.ndarray,
+               action: int,
+               reward: float,
+               terminal: bool,
+               next_state: np.ndarray
+               ) -> int:
+        """Store a transition, overwriting the oldest one once full. Returns its slot."""
+        slot = self.pos
+        self.states[slot] = state
+        self.actions[slot] = action
+        self.rewards[slot] = reward
+        self.terminals[slot] = terminal
+        self.next_states[slot] = next_state
+        self.pos = (slot + 1) % self.capacity
+        self.size = min(self.size + 1, self.capacity)
+        return slot
+
+    def _gather(self, indices: np.ndarray) -> Tuple[np.ndarray, ...]:
+        return (self.states[indices],
+                self.actions[indices],
+                self.rewards[indices],
+                self.terminals[indices],
+                self.next_states[indices])
+
+    def sample(self) -> Tuple[np.ndarray, ...]:
+        return self._gather(np.random.randint(0, self.size, self.batch_size))
+
+
+class PEReplayBuffer(ReplayBuffer):
+    """Prioritized experience replay: transitions are drawn proportionally to ``|TD error|``.
+
+    Sampling is stratified over ``batch_size`` equal priority mass segments, and the
+    resulting bias is corrected by importance sampling weights annealed through ``beta``.
+    """
+
+    def __init__(self,
+                 capacity: int,
+                 batch_size: int,
+                 n_states: int,
                  alpha: float = 0.6,
                  beta: float = 0.4,
                  eps: float = 0.001
                  ) -> None:
-        self.capacity = capacity
-        self.batch_size = batch_size
-        self.tree = SumTree(capacity=capacity)
+        super().__init__(capacity, batch_size, n_states)
+        self.tree = SumTree(capacity)
         self.alpha = alpha
         self.beta = beta
         self.eps = eps
-        self.states = [object] * batch_size
-        self.actions = [0] * batch_size
-        self.rewards = [0.0] * batch_size
-        self.terminals = [False] * batch_size
-        self.next_states = [object] * batch_size
-        self.indices = [0] * batch_size
-        self.priorities = [0.0] * batch_size
+        self.max_priority = 1.0
 
     @property
     def sum_priorities(self) -> float:
         return self.tree.sum_priorities
 
-    @property
-    def num_entries(self) -> int:
-        return self.tree.num_entries
-
-    # @property
-    # def priority_factor(self) -> float:
-    #     return self.tree.num_entries / self.tree.sum_priorities
-
-    # def _err_to_priority(self, error: float) -> float:
-    #     return (np.abs(error) + self.eps) ** self.alpha
-
     def append(self,
-               state: np.array,
+               state: np.ndarray,
                action: int,
                reward: float,
                terminal: bool,
-               next_state: np.array,
-               error: float = 1000.0
-               ) -> None:
-        priority = (error + self.eps) ** self.alpha
-        data = (state, action, reward, terminal, next_state)
-        self.tree.add(priority, data)
+               next_state: np.ndarray
+               ) -> int:
+        # A fresh transition has no TD error yet, so give it the highest priority seen so
+        # far: it is guaranteed to be replayed at least once, then re-priced from its error.
+        slot = super().append(state, action, reward, terminal, next_state)
+        self.tree.update(slot, self.max_priority)
+        return slot
 
-    def sample(self) -> Tuple:
-        segment = self.tree.sum_priorities / self.batch_size
-        priorities = np.random.uniform(size=self.batch_size) * segment
-        priorities += np.arange(self.batch_size, dtype=np.float) * segment
-        priorities = np.clip(priorities, 0.0, max(self.tree.sum_priorities - 1e-6, 0.0))
-        # print(priorities)
-        for i, p in enumerate(priorities):
-            index, priority, (state, action, reward, terminal, next_state) = self.tree.get(p)
-            self.indices[i] = index
-            self.priorities[i] = priority  # self.tree.n_entries * priority / self.tree.total
-            self.states[i] = state
-            self.actions[i] = action
-            self.rewards[i] = reward
-            self.terminals[i] = terminal
-            self.next_states[i] = next_state
+    def sample(self) -> Tuple[np.ndarray, ...]:
+        total = self.tree.sum_priorities
+        segment = total / self.batch_size
+        offsets = (np.random.uniform(size=self.batch_size) + np.arange(self.batch_size)) * segment
 
-        # weights = self.priorities.add(1e-6).power(-self.beta)
-        # weights = np.power(self.priorities + 1e-6, -self.beta)
-        # weights /= weights.max()
+        # Slots past `size` are unwritten and carry zero priority; clamping guards the
+        # rounding case where the walk still lands on one.
+        retrieve, priority, last = self.tree.retrieve, self.tree.priority, self.size - 1
+        slots = [min(retrieve(offset), last) for offset in offsets.tolist()]
+        priorities = np.fromiter((priority(slot) for slot in slots), np.float64, self.batch_size)
+        indices = np.asarray(slots, dtype=np.int64)
 
-        return self.states, self.actions, self.rewards, self.terminals, self.next_states, self.indices, self.priorities
+        probabilities = priorities / total
+        weights = (self.size * probabilities + 1e-6) ** -self.beta
+        weights /= weights.max()
 
-    # def update(self, index: int, error: float) -> None:
-    #     priority = self._err_to_priority(error)
-    #     self.tree.update(index, priority)
+        return (*self._gather(indices), indices, weights.astype(np.float32))
 
-    def update_priorities(self, indices: np.array, priorities: np.array) -> None:
-        for index, priority in zip(indices, priorities):
-            # self.update(index, error)
-            self.tree.update(index, priority)
+    def update_priorities(self, indices: np.ndarray, errors: np.ndarray) -> None:
+        priorities = (np.abs(errors) + self.eps) ** self.alpha
+        self.max_priority = max(self.max_priority, float(priorities.max()))
+        update = self.tree.update
+        for index, priority in zip(indices.tolist(), priorities.tolist()):
+            update(index, priority)
